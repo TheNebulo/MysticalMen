@@ -272,4 +272,4 @@ def update_statistics_body(pathname):
 
 if __name__ == '__main__':
     app.title = "Mystical Men"
-    app.run_server(debug=True)
+    app.run_server(port=8080)
