@@ -56,3 +56,20 @@ def loadCsv(csv_path):
             questions[i].add_answer(answer.strip(), name.strip())
     
     return questions
+
+def insert_line_breaks(text, line_length=65):
+    words = text.split()
+    result = []
+    current_line = []
+    current_length = 0
+    for word in words:
+        if current_length + len(word) + 1 > line_length:
+            result.append(" ".join(current_line))
+            current_line = [word]
+            current_length = len(word)
+        else:
+            current_line.append(word)
+            current_length += len(word) + 1
+    if current_line:
+        result.append(" ".join(current_line))
+    return '<br>'.join(result)

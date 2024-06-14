@@ -5,7 +5,7 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 import plotly.express as px
 from collections import Counter
-from utils import loadCsv
+from utils import loadCsv, insert_line_breaks
 
 csv_files = {
     '/season1': 'season1.csv',
@@ -37,7 +37,7 @@ home_page_layout = html.Div([
     dbc.Container([
         dbc.Row([
             dbc.Col(
-                html.H2("Mystical Men Results Home", style={"word-wrap": "break-word", "white-space": "normal"}),
+                html.H2("Mystical Men Results", style={"word-wrap": "break-word", "white-space": "normal"}),
                 className="text-center mb-5 mt-5"
             )
         ]),
@@ -183,17 +183,19 @@ def update_graph(pathname, prev_clicks, next_clicks, dropdown_value, current_que
             marker=dict(colors=marker_colors)
         )
     ])
-
+    
+    wrapped_title = insert_line_breaks(question.name)
+    
     fig.update_layout(
         title={
-            'text': f'{question.name}',  # CSS added here
+            'text': f'{wrapped_title}',
             'x': 0.5, 
             'xanchor': 'center', 
             'yanchor': 'top'
         },
         hovermode='x unified',
         autosize=True,
-        width=1200,
+        width=600,
         height=500,
         margin=dict(l=50, r=50, t=70, b=50),
         legend=dict(
