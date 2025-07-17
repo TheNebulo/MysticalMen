@@ -15,6 +15,16 @@ nicknames = {
         "Gojo": "Marco",
         "Casi": "Casimir",
         "Min": "Minhyeok"
+    },
+    "season4.csv" : {
+        "oney": "Oney",
+        "Minh": "Minhyeok",
+        "Demian": "Manthan",
+        "Nik (friend)": "Christofor",
+        "V ed": "Vedant",
+        "Egalidentrus": "Farran",
+        "Dr Frottenschmertz": "Liam",
+        "Batman (Casi)": "Casimir"
     }
 }
 

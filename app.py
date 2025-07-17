@@ -1,5 +1,5 @@
 import dash
-from dash import dcc, html
+from dash import dcc, html, dash_table
 import dash_bootstrap_components as dbc
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
@@ -7,10 +7,13 @@ import plotly.express as px
 from collections import Counter
 from utils import loadCsv, insert_line_breaks
 
+MAX_UNIQUE_ANSWERS = 10
+
 csv_files = {
     '/season1': 'season1.csv',
     '/season2': 'season2.csv',
-    '/season3': 'season3.csv'
+    '/season3': 'season3.csv',
+    '/season4': 'season4.csv'
 }
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
@@ -24,9 +27,11 @@ def load_questions(pathname):
 color_mapping = {}
 
 def generate_color(index):
-    hex_color = px.colors.qualitative.Light24[index][1:]
-    rgb = list(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-    return 'rgb({}, {}, {})'.format(rgb[0], rgb[1], rgb[2])
+    palette = px.colors.qualitative.Light24
+    valid_index = index % len(palette)
+    hex_color = palette[valid_index].lstrip('#')
+    r, g, b = (int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    return f'rgb({r}, {g}, {b})'
 
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
@@ -47,6 +52,7 @@ home_page_layout = html.Div([
                     dbc.Button("Go to Season 1", href="/season1", color="primary", className="mx-2 mb-2"),
                     dbc.Button("Go to Season 2", href="/season2", color="success", className="mx-2 mb-2"),
                     dbc.Button("Go to Season 3", href="/season3", color="warning", className="mx-2 mb-2"),
+                    dbc.Button("Go to Season 4", href="/season4", color="info", className="mx-2 mb-2"),
                 ], className="text-center")
             )
         ])
@@ -64,7 +70,7 @@ def generate_results_layout(season_title):
             ]),
             dbc.Row([
                 dbc.Col(
-                    dcc.Graph(id='pie-chart', style={"display": "inline-block"}),
+                    html.Div(id='chart-or-table', style={"text-align": "center"}),
                     style={"text-align": "center"}
                 )
             ]),
@@ -112,8 +118,9 @@ def display_page(pathname):
     else:
         return dcc.Location(href='/', id='redirect-to-home')
 
+
 @app.callback(
-    [Output('pie-chart', 'figure'),
+    [Output('chart-or-table', 'children'),
      Output('current-question-index', 'data'),
      Output('question-dropdown', 'options'),
      Output('question-dropdown', 'value')],
@@ -127,7 +134,7 @@ def update_graph(pathname, prev_clicks, next_clicks, dropdown_value, current_que
     questions = load_questions(pathname)
 
     if not questions:
-        return go.Figure(), current_question_index, [], None
+        return html.Div("No data available."), current_question_index, [], None
 
     question_labels = [{'label': q.name, 'value': i} for i, q in enumerate(questions)]
 
@@ -150,64 +157,67 @@ def update_graph(pathname, prev_clicks, next_clicks, dropdown_value, current_que
 
     answer_count = {}
     answer_respondents = {}
-
-    global color_mapping
+    color_mapping = {}
+    
+    unique_answers = sorted(set(ans.answer for ans in question.answers))
+    for idx, answer in enumerate(unique_answers):
+        color_mapping[answer] = generate_color(idx)
 
     for answer_obj in question.answers:
         answer = answer_obj.answer
         respondent = answer_obj.answered_by
 
-        if answer not in answer_count:
-            answer_count[answer] = 0
-            answer_respondents[answer] = []
+        answer_count.setdefault(answer, 0)
+        answer_respondents.setdefault(answer, [])
 
         answer_count[answer] += 1
         answer_respondents[answer].append(respondent)
 
-        if answer not in color_mapping:
-            color_mapping[answer] = generate_color(len(color_mapping))
-
     answer_labels = list(answer_count.keys())
     answer_values = list(answer_count.values())
     answer_texts = [f"{', '.join(respondents)}" for respondents in answer_respondents.values()]
-
     marker_colors = [color_mapping[label] for label in answer_labels]
 
-    fig = go.Figure(data=[
-        go.Pie(
-            labels=answer_labels,
-            values=answer_values,
-            hovertext=answer_texts,
-            hoverinfo='text',
-            textinfo='label+percent',
-            marker=dict(colors=marker_colors)
-        )
-    ])
-    
     wrapped_title = insert_line_breaks(question.name)
-    
-    fig.update_layout(
-        title={
-            'text': f'{wrapped_title}',
-            'x': 0.5, 
-            'xanchor': 'center', 
-            'yanchor': 'top'
-        },
-        hovermode='x unified',
-        autosize=True,
-        width=600,
-        height=500,
-        margin=dict(l=50, r=50, t=70, b=50),
-        legend=dict(
-            orientation="h",
-            yanchor="top",
-            y=-0.1,
-            xanchor="center",
-            x=0.5
-        )
-    )
 
-    return fig, new_index, question_labels, new_index
+    if len(answer_count) <= MAX_UNIQUE_ANSWERS:
+        short_labels = [label if len(label) <= 15 else label[:12] + "..." for label in answer_labels]
+        
+        fig = go.Figure(data=[
+            go.Pie(
+                labels=short_labels,
+                values=answer_values,
+                hovertext=answer_texts,
+                hoverinfo='text',
+                textinfo='label+percent',
+                marker=dict(colors=marker_colors)
+            )
+        ])
+        fig.update_layout(
+            title={'text': f'{wrapped_title}', 'x': 0.5, 'xanchor': 'center'},
+            width=600,
+            height=500,
+            margin=dict(l=50, r=50, t=70, b=50),
+            legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5)
+        )
+        chart_or_table = dcc.Graph(figure=fig, style={"display": "inline-block"})
+    else:
+        table_data = [
+            {"Answer": ans, "Count": answer_count[ans], "Respondents": ", ".join(answer_respondents[ans])}
+            for ans in answer_labels
+        ]
+        chart_or_table = dash_table.DataTable(
+            columns=[
+                {"name": "Answer", "id": "Answer"},
+                {"name": "Count", "id": "Count"},
+                {"name": "Respondents", "id": "Respondents"}
+            ],
+            data=table_data,
+            style_table={"overflowX": "auto", "maxHeight": "500px", "overflowY": "auto", "margin": "auto", "width": "90%"},
+            style_cell={"textAlign": "left", "whiteSpace": "normal", "height": "auto"},
+        )
+
+    return chart_or_table, new_index, question_labels, new_index
 
 @app.callback(
     Output("stats-modal", "is_open"),
@@ -228,11 +238,23 @@ def update_statistics_body(pathname):
 
     if not questions:
         return "No data available."
+    
+    respondents = set()
+    for question in questions:
+        for answer in question.answers:
+            if answer.answered_by:
+                respondents.add(answer.answered_by)
+    
+    filtered_answers = []
+    for question in questions:
+        for answer in question.answers:
+            if answer.answer in respondents:
+                filtered_answers.append(answer)
 
-    all_answers = [answer_obj.answer for question in questions for answer_obj in question.answers]
+    if not filtered_answers:
+        return "No valid answers available."
 
-    if not all_answers:
-        return "No answers available."
+    all_answers = [answer.answer for answer in filtered_answers]
 
     answer_counter = Counter(all_answers)
 
@@ -243,20 +265,18 @@ def update_statistics_body(pathname):
     specific_votes = Counter()
 
     all_answers_by_person = {}
-    for question in questions:
-        for answer in question.answers:
-            respondent = answer.answered_by
-            response = answer.answer
+    for answer in filtered_answers:
+        respondent = answer.answered_by
+        response = answer.answer
 
-            if respondent not in all_answers_by_person:
-                all_answers_by_person[respondent] = []
-            all_answers_by_person[respondent].append(response)
+        if respondent not in all_answers_by_person:
+            all_answers_by_person[respondent] = []
+        all_answers_by_person[respondent].append(response)
 
-            if respondent == response:
-                self_votes[respondent] += 1
-
-            if respondent != response:
-                specific_votes[(respondent, response)] += 1
+        if respondent == response:
+            self_votes[respondent] += 1
+        else:
+            specific_votes[(respondent, response)] += 1
 
     most_self_votes = self_votes.most_common(1)
     least_self_votes = self_votes.most_common()[-1] if self_votes else ("", 0)
@@ -274,4 +294,4 @@ def update_statistics_body(pathname):
 
 if __name__ == '__main__':
     app.title = "Mystical Men"
-    app.run_server(port=8080)
+    app.run(host='0.0.0.0', port=5000)
