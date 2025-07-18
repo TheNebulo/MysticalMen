@@ -20,7 +20,7 @@ nicknames = {
         "oney": "Oney",
         "Minh": "Minhyeok",
         "Demian": "Manthan",
-        "Nik (friend)": "Christofor",
+        "Nik (friend)": "Iker",
         "V ed": "Vedant",
         "Egalidentrus": "Farran",
         "Dr Frottenschmertz": "Liam",
