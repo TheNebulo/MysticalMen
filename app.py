@@ -206,16 +206,29 @@ def update_graph(pathname, prev_clicks, next_clicks, dropdown_value, current_que
             {"Answer": ans, "Count": answer_count[ans], "Respondents": ", ".join(answer_respondents[ans])}
             for ans in answer_labels
         ]
-        chart_or_table = dash_table.DataTable(
-            columns=[
-                {"name": "Answer", "id": "Answer"},
-                {"name": "Count", "id": "Count"},
-                {"name": "Respondents", "id": "Respondents"}
-            ],
-            data=table_data,
-            style_table={"overflowX": "auto", "maxHeight": "500px", "overflowY": "auto", "margin": "auto", "width": "90%"},
-            style_cell={"textAlign": "left", "whiteSpace": "normal", "height": "auto"},
-        )
+        chart_or_table = html.Div([
+            html.H4(wrapped_title, style={'textAlign': 'center', 'marginBottom': '20px'}),
+            dash_table.DataTable(
+                columns=[
+                    {"name": "Answer", "id": "Answer"},
+                    {"name": "Count", "id": "Count"},
+                    {"name": "Respondents", "id": "Respondents"}
+                ],
+                data=table_data,
+                style_table={
+                    "overflowX": "auto",
+                    "maxHeight": "500px",
+                    "overflowY": "auto",
+                    "margin": "auto",
+                    "width": "90%"
+                },
+                style_cell={
+                    "textAlign": "left",
+                    "whiteSpace": "normal",
+                    "height": "auto"
+                },
+            )
+        ])
 
     return chart_or_table, new_index, question_labels, new_index
 
@@ -278,16 +291,40 @@ def update_statistics_body(pathname):
         else:
             specific_votes[(respondent, response)] += 1
 
-    most_self_votes = self_votes.most_common(1)
+    # Self-obsession ratios
     least_self_votes = self_votes.most_common()[-1] if self_votes else ("", 0)
-    specific_most_votes = specific_votes.most_common(1)[0] if specific_votes else (("",""), 0)
+
+    # Biggest Fan
+    fan_counter = Counter({
+        (voter, votee): count
+        for (voter, votee), count in specific_votes.items()
+        if voter != votee
+    })
+    biggest_fan = fan_counter.most_common(1)[0] if fan_counter else (("",""), 0)
+
+    # Mutuals
+    mutuals = []
+    for (a, b), count_ab in specific_votes.items():
+        count_ba = specific_votes.get((b, a), 0)
+        if count_ab > 0 and count_ba > 0:
+            mutuals.append(((a, b), count_ab + count_ba))
+    mutuals.sort(key=lambda x: x[1], reverse=True)
+    top_mutual = mutuals[0] if mutuals else (("None", "None"), 0)
+
+    # Enigma (most diverse votes)
+    variety_count = {
+        person: len(set(responses))
+        for person, responses in all_answers_by_person.items()
+    }
+    enigma = max(variety_count.items(), key=lambda x: x[1]) if variety_count else ("", 0)
 
     stat_elements = [
-        html.P(f"Most Popular: {most_mentioned[0]} with {most_mentioned[1]} mentions."),
-        html.P(f"Least Popular: {least_mentioned[0]} with {least_mentioned[1]} mentions."),
-        html.P(f"Self-glazer: {most_self_votes[0][0]} voted for himself {most_self_votes[0][1]} times."),
-        html.P(f"Selfless: {least_self_votes[0]} voted for himself only {least_self_votes[1]} time(s)."),
-        html.P(f"Gay couple: {specific_most_votes[0][0]} voted for {specific_most_votes[0][1]} {specific_most_votes[1]} times."),
+        html.P(f"🌟 Most Popular: {most_mentioned[0]} with {most_mentioned[1]} mentions."),
+        html.P(f"💤 Least Popular: {least_mentioned[0]} with {least_mentioned[1]} mentions."),
+        html.P(f"🫥 Selfless: {least_self_votes[0]} only voted for themselves {least_self_votes[1]} time(s)."),
+        html.P(f"😍 Obsessed: {biggest_fan[0][0]} voted for {biggest_fan[0][1]} {biggest_fan[1]} times."),
+        html.P(f"🏳️‍🌈 Gay Couple: {top_mutual[0][0]} and {top_mutual[0][1]} voted for each other {top_mutual[1]} times."),
+        html.P(f"🌀 Enigma: {enigma[0]} voted for {enigma[1]} different people.")
     ]
 
     return stat_elements
